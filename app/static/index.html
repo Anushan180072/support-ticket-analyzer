@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Support Ticket AI — Console</title>
+<style>
+  :root{
+    --bg:#11141a;
+    --panel:#181c24;
+    --panel-2:#1d222c;
+    --border:#262b36;
+    --text:#ece9e2;
+    --muted:#8b92a3;
+    --amber:#f2a93b;
+    --teal:#41a98c;
+    --red:#e5564b;
+    --blue:#5b8def;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, Consolas, monospace;
+    --sans: ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:var(--sans); -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--blue);}
+  .eyebrow{
+    font-family:var(--mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--muted);
+  }
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 20px; border-bottom:1px solid var(--border);
+    position:sticky; top:0; background:var(--bg); z-index:5;
+  }
+  .brand{display:flex; align-items:center; gap:10px;}
+  .beacon{
+    width:9px; height:9px; border-radius:50%; background:var(--teal);
+    box-shadow:0 0 0 0 rgba(65,169,140,.6);
+    animation:pulse 2.4s ease-out infinite;
+  }
+  .beacon.alert{ background:var(--red); box-shadow:0 0 0 0 rgba(229,86,75,.6); }
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(65,169,140,.55);}
+    70%{box-shadow:0 0 0 8px rgba(65,169,140,0);}
+    100%{box-shadow:0 0 0 0 rgba(65,169,140,0);}
+  }
+  .beacon.alert{animation-name:pulse-red;}
+  @keyframes pulse-red{
+    0%{box-shadow:0 0 0 0 rgba(229,86,75,.55);}
+    70%{box-shadow:0 0 0 8px rgba(229,86,75,0);}
+    100%{box-shadow:0 0 0 0 rgba(229,86,75,0);}
+  }
+  @media (prefers-reduced-motion: reduce){ .beacon{animation:none;} }
+  .brand h1{font-size:15px; margin:0; font-weight:600; letter-spacing:.02em;}
+  .status-pill{
+    font-family:var(--mono); font-size:11px; color:var(--muted);
+    border:1px solid var(--border); border-radius:20px; padding:4px 10px;
+  }
+  main{ padding:18px 20px 60px; max-width:1320px; margin:0 auto; }
+
+  .metrics{
+    display:grid; grid-template-columns:repeat(5,1fr); gap:1px;
+    background:var(--border); border:1px solid var(--border); border-radius:10px;
+    overflow:hidden; margin-bottom:18px;
+  }
+  .metric{ background:var(--panel); padding:14px 16px; }
+  .metric .eyebrow{margin-bottom:6px;}
+  .metric .val{font-family:var(--mono); font-size:22px; font-weight:600;}
+  .metric .val.amber{color:var(--amber);} .metric .val.red{color:var(--red);} .metric .val.teal{color:var(--teal);}
+
+  .grid{ display:grid; grid-template-columns: 1.15fr 1fr; gap:16px; align-items:start; }
+  @media (max-width:900px){ .grid{grid-template-columns:1fr;} .metrics{grid-template-columns:repeat(2,1fr);} }
+
+  .panel{ background:var(--panel); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+  .panel-head{ padding:12px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between;}
+  .panel-body{ padding:14px 16px; }
+
+  /* Query console */
+  #console-log{ display:flex; flex-direction:column; gap:12px; max-height:420px; overflow-y:auto; margin-bottom:12px; }
+  .qa{ border-left:2px solid var(--border); padding-left:10px; }
+  .qa .q{ color:var(--muted); font-size:13px; margin-bottom:4px;}
+  .qa .q::before{ content:"❯ "; color:var(--blue); }
+  .qa .a{ font-size:14px; line-height:1.5; }
+  .qa .meta{ font-family:var(--mono); font-size:11px; color:var(--muted); margin-top:6px; }
+  .qa .sql{ font-family:var(--mono); font-size:11.5px; color:var(--teal); background:#10211c; border:1px solid #1d3a30;
+    padding:8px 10px; border-radius:6px; margin-top:6px; white-space:pre-wrap; word-break:break-word; }
+  .qa.engine-fallback .meta{color:var(--amber);}
+
+  .input-row{ display:flex; gap:8px; }
+  #q-input{
+    flex:1; background:var(--panel-2); border:1px solid var(--border); border-radius:8px;
+    color:var(--text); font-family:var(--mono); font-size:13.5px; padding:10px 12px;
+  }
+  #q-input:focus{ outline:2px solid var(--blue); outline-offset:1px; }
+  #q-send{
+    background:var(--blue); color:#0b0d11; border:none; border-radius:8px; padding:0 16px;
+    font-weight:600; font-size:13px; cursor:pointer;
+  }
+  #q-send:disabled{ opacity:.5; cursor:default; }
+  .examples{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .ex-chip{
+    font-family:var(--mono); font-size:11px; color:var(--muted); background:var(--panel-2);
+    border:1px solid var(--border); border-radius:20px; padding:4px 10px; cursor:pointer;
+  }
+  .ex-chip:hover{ color:var(--text); border-color:var(--blue); }
+
+  /* Anomaly board */
+  .sev-tabs{ display:flex; gap:6px; }
+  .sev-tab{
+    font-family:var(--mono); font-size:11px; padding:4px 9px; border-radius:6px; cursor:pointer;
+    border:1px solid var(--border); color:var(--muted); background:transparent;
+  }
+  .sev-tab.active{ color:var(--bg); background:var(--text); border-color:var(--text); }
+  #anomaly-list{ display:flex; flex-direction:column; gap:8px; max-height:480px; overflow-y:auto; }
+  .anomaly{
+    border-radius:8px; padding:10px 12px; background:var(--panel-2);
+    border-left:3px solid var(--muted);
+  }
+  .anomaly.high{ border-left-color:var(--red); }
+  .anomaly.medium{ border-left-color:var(--amber); }
+  .anomaly.low{ border-left-color:var(--muted); }
+  .anomaly .top{ display:flex; justify-content:space-between; gap:8px; align-items:baseline;}
+  .anomaly .tid{ font-family:var(--mono); font-size:12.5px; font-weight:600; }
+  .anomaly .sev{ font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.06em; }
+  .anomaly.high .sev{color:var(--red);} .anomaly.medium .sev{color:var(--amber);} .anomaly.low .sev{color:var(--muted);}
+  .anomaly .detail{ font-size:12.5px; color:var(--text); margin-top:4px; line-height:1.45; }
+  .anomaly .type{ font-family:var(--mono); font-size:10.5px; color:var(--muted); margin-top:4px; }
+  .empty-state{ color:var(--muted); font-size:13px; padding:18px 4px; text-align:center; }
+
+  /* Ticket explorer */
+  .filters{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+  .filters select{
+    background:var(--panel-2); border:1px solid var(--border); color:var(--text);
+    font-family:var(--mono); font-size:12px; padding:6px 8px; border-radius:6px;
+  }
+  table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  th{ text-align:left; color:var(--muted); font-family:var(--mono); font-size:10.5px; text-transform:uppercase;
+    letter-spacing:.05em; padding:6px 8px; border-bottom:1px solid var(--border); }
+  td{ padding:7px 8px; border-bottom:1px solid var(--border); }
+  tr:hover td{ background:var(--panel-2); }
+  .badge{ font-family:var(--mono); font-size:10.5px; padding:2px 7px; border-radius:10px; }
+  .badge.Critical{background:#3a1b1b; color:var(--red);} .badge.High{background:#3a2c14; color:var(--amber);}
+  .badge.Medium{background:#1c2c3a; color:var(--blue);} .badge.Low{background:#15201c; color:var(--teal);}
+  .badge.Open{background:#3a2c14; color:var(--amber);} .badge.Resolved{background:#15201c; color:var(--teal);}
+  .badge.Escalated{background:#3a1b1b; color:var(--red);}
+  footer{ text-align:center; color:var(--muted); font-size:11px; padding:20px; font-family:var(--mono); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span class="beacon" id="beacon"></span>
+    <h1>SUPPORT TICKET AI</h1>
+  </div>
+  <span class="status-pill" id="status-pill">connecting…</span>
+</header>
+
+<main>
+  <section class="metrics" id="metrics">
+    <div class="metric"><div class="eyebrow">Total tickets</div><div class="val" id="m-total">—</div></div>
+    <div class="metric"><div class="eyebrow">Open</div><div class="val amber" id="m-open">—</div></div>
+    <div class="metric"><div class="eyebrow">Critical</div><div class="val red" id="m-critical">—</div></div>
+    <div class="metric"><div class="eyebrow">Avg rating</div><div class="val teal" id="m-rating">—</div></div>
+    <div class="metric"><div class="eyebrow">Avg resolution (hrs)</div><div class="val" id="m-resol">—</div></div>
+  </section>
+
+  <div class="grid">
+    <section class="panel">
+      <div class="panel-head">
+        <span class="eyebrow">Query console</span>
+        <span class="eyebrow" id="engine-pill">engine: —</span>
+      </div>
+      <div class="panel-body">
+        <div id="console-log"></div>
+        <div class="input-row">
+          <input id="q-input" type="text" placeholder="e.g. How many critical tickets are unresolved?" />
+          <button id="q-send">Ask</button>
+        </div>
+        <div class="examples">
+          <span class="ex-chip">How many critical tickets are unresolved?</span>
+          <span class="ex-chip">Which agent has the lowest average customer rating?</span>
+          <span class="ex-chip">What is the average resolution time for Technical tickets?</span>
+          <span class="ex-chip">Breakdown of tickets by priority</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <span class="eyebrow">Anomaly board</span>
+        <div class="sev-tabs" id="sev-tabs">
+          <button class="sev-tab active" data-sev="">all</button>
+          <button class="sev-tab" data-sev="high">high</button>
+          <button class="sev-tab" data-sev="medium">medium</button>
+          <button class="sev-tab" data-sev="low">low</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div id="anomaly-list"><div class="empty-state">Loading anomaly scan…</div></div>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel" style="margin-top:16px;">
+    <div class="panel-head"><span class="eyebrow">Ticket explorer</span></div>
+    <div class="panel-body">
+      <div class="filters">
+        <select id="f-status"><option value="">status: any</option><option>Open</option><option>Resolved</option><option>Escalated</option></select>
+        <select id="f-priority"><option value="">priority: any</option><option>Low</option><option>Medium</option><option>High</option><option>Critical</option></select>
+        <select id="f-category"><option value="">category: any</option><option>Billing</option><option>Technical</option><option>General</option></select>
+      </div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr>
+            <th>Ticket</th><th>Created</th><th>Category</th><th>Priority</th><th>Status</th>
+            <th>Resp (h)</th><th>Resol (h)</th><th>Agent</th><th>Rating</th><th>Summary</th>
+          </tr></thead>
+          <tbody id="ticket-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>support-ticket-ai · local FastAPI service · data never leaves this machine</footer>
+
+<script>
+const $ = (sel) => document.querySelector(sel);
+let currentSeverity = "";
+
+async function api(path, opts){
+  const res = await fetch(path, opts);
+  if(!res.ok){
+    const body = await res.text();
+    throw new Error(`${res.status}: ${body}`);
+  }
+  return res.json();
+}
+
+async function loadHealth(){
+  try{
+    const h = await api('/api/health');
+    $('#status-pill').textContent = `${h.rows_loaded} rows · ${h.llm_provider}${h.llm_available ? '' : ' (fallback)'}`;
+    $('#engine-pill').textContent = `engine: ${h.llm_provider}`;
+    $('#beacon').classList.toggle('alert', !h.llm_available);
+  }catch(e){
+    $('#status-pill').textContent = 'backend unreachable';
+  }
+}
+
+async function loadSummary(){
+  const s = await api('/api/summary');
+  $('#m-total').textContent = s.total_tickets;
+  $('#m-open').textContent = s.by_status.Open || 0;
+  $('#m-critical').textContent = s.by_priority.Critical || 0;
+  $('#m-rating').textContent = s.avg_customer_rating ?? '—';
+  $('#m-resol').textContent = s.avg_resolution_time_hrs ?? '—';
+}
+
+function anomalyCard(a){
+  const div = document.createElement('div');
+  div.className = `anomaly ${a.severity}`;
+  div.innerHTML = `
+    <div class="top"><span class="tid">${a.ticket_id}</span><span class="sev">${a.severity}</span></div>
+    <div class="detail">${a.detail}</div>
+    <div class="type">${a.type}</div>`;
+  return div;
+}
+
+async function loadAnomalies(){
+  const list = $('#anomaly-list');
+  list.innerHTML = '<div class="empty-state">Scanning…</div>';
+  try{
+    const qs = currentSeverity ? `?severity=${currentSeverity}` : '';
+    const data = await api(`/api/anomalies${qs}`);
+    const beacon = $('#beacon');
+    if(!currentSeverity){
+      beacon.classList.toggle('alert', (data.by_severity.high || 0) > 0);
+    }
+    list.innerHTML = '';
+    if(data.anomalies.length === 0){
+      list.innerHTML = '<div class="empty-state">No anomalies match this filter. The dataset looks healthy.</div>';
+      return;
+    }
+    data.anomalies.forEach(a => list.appendChild(anomalyCard(a)));
+  }catch(e){
+    list.innerHTML = `<div class="empty-state">Couldn't load anomalies (${e.message}).</div>`;
+  }
+}
+
+function addQA(question, result, isError){
+  const log = $('#console-log');
+  const div = document.createElement('div');
+  div.className = `qa engine-${result.engine || 'error'}`;
+  let html = `<div class="q">${question}</div><div class="a">${isError ? result.message : result.answer}</div>`;
+  if(!isError){
+    html += `<div class="meta">engine: ${result.engine}${result.warnings && result.warnings.length ? ' · ' + result.warnings.join(' ') : ''}</div>`;
+    if(result.sql){ html += `<div class="sql">${result.sql}</div>`; }
+  }
+  div.innerHTML = html;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+async function ask(question){
+  if(!question.trim()) return;
+  const btn = $('#q-send');
+  btn.disabled = true;
+  try{
+    const result = await api('/api/query', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({question})
+    });
+    addQA(question, result, false);
+  }catch(e){
+    addQA(question, {message: `Error: ${e.message}`}, true);
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+async function loadTickets(){
+  const status = $('#f-status').value, priority = $('#f-priority').value, category = $('#f-category').value;
+  const params = new URLSearchParams();
+  if(status) params.set('status', status);
+  if(priority) params.set('priority', priority);
+  if(category) params.set('category', category);
+  params.set('limit', '40');
+  const rows = await api(`/api/tickets?${params.toString()}`);
+  const body = $('#ticket-body');
+  body.innerHTML = '';
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.ticket_id}</td>
+      <td>${r.created_at.slice(0,16)}</td>
+      <td>${r.category}</td>
+      <td><span class="badge ${r.priority}">${r.priority}</span></td>
+      <td><span class="badge ${r.status}">${r.status}</span></td>
+      <td>${r.response_time_hrs ?? ''}</td>
+      <td>${r.resolution_time_hrs ?? ''}</td>
+      <td>${r.agent_id}</td>
+      <td>${r.customer_rating ?? ''}</td>
+      <td style="color:var(--muted)">${r.issue_summary}</td>`;
+    body.appendChild(tr);
+  });
+}
+
+$('#q-send').addEventListener('click', () => { const v = $('#q-input').value; $('#q-input').value=''; ask(v); });
+$('#q-input').addEventListener('keydown', (e) => { if(e.key === 'Enter'){ const v = e.target.value; e.target.value=''; ask(v); }});
+document.querySelectorAll('.ex-chip').forEach(chip => chip.addEventListener('click', () => ask(chip.textContent)));
+document.querySelectorAll('.sev-tab').forEach(tab => tab.addEventListener('click', () => {
+  document.querySelectorAll('.sev-tab').forEach(t => t.classList.remove('active'));
+  tab.classList.add('active');
+  currentSeverity = tab.dataset.sev;
+  loadAnomalies();
+}));
+['f-status','f-priority','f-category'].forEach(id => $('#'+id).addEventListener('change', loadTickets));
+
+loadHealth();
+loadSummary();
+loadAnomalies();
+loadTickets();
+</script>
+</body>
+</html>
